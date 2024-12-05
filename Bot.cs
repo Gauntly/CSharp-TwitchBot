@@ -51,7 +51,7 @@ public class Bot
             await Task.Delay(2000);
             
             // Send welcome message
-            _client.SendMessage("gauntlydj", "Hello chat! GauntlyBot is now online! Type !commands to see what I can do!");
+            _client.SendMessage(_channelName, "Hello chat! GauntlyBot is now online! Type !commands to see what I can do!");
 
             // First get user ID
             var users = await _api.Helix.Users.GetUsersAsync(logins: new List<string> { _channelName });
