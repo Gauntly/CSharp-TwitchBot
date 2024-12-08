@@ -18,7 +18,7 @@ public class Bot
     private readonly BotConfig _config;
     private const string PREFIX = "!";
     private string _channelName = "";
-
+    private readonly List<ITwitchBotPlugin> _plugins = new();
     public Bot(IConfiguration configuration)
     {
         _config = new BotConfig();
@@ -38,6 +38,24 @@ public class Bot
         // Register event handlers
         _client.OnConnected += Client_OnConnected;
         _client.OnMessageReceived += Client_OnMessageReceived;
+        LoadPlugins();
+    }
+
+    private void LoadPlugins()
+    {
+        // Add all plugins
+        _plugins.Add(new DicePlugin());
+        _plugins.Add(new BasicCommandsPlugin());
+        _plugins.Add(new UptimePlugin());
+        _plugins.Add(new SemanticKernelPlugin(_config.OpenAiKey));
+        _plugins.Add(new RaidPalPlugin());
+        
+        // Initialize each plugin
+        foreach (var plugin in _plugins)
+        {
+            plugin.Initialize(_client, _api);
+            Console.WriteLine($"Loaded plugin: {plugin.Name}");
+        }
     }
 
     public async Task Setup()
@@ -102,45 +120,18 @@ public class Bot
 
     private async void Client_OnMessageReceived(object? sender, OnMessageReceivedArgs e)
     {
-        string message = e.ChatMessage.Message.ToLower();
-        string channel = e.ChatMessage.Channel;
-        string username = e.ChatMessage.DisplayName;
-
-        switch (message)
+        // Process all plugins
+        foreach (var plugin in _plugins)
         {
-            case "!hello":
-                _client.SendMessage(channel, $"Hello {username}! 👋");
-                break;
+            await plugin.HandleMessage(e);
+        }
+    }
 
-            case "!uptime":
-                try
-                {
-                    var stream = await _api.Helix.Streams.GetStreamsAsync(userLogins: new List<string> { channel });
-                    if (stream.Streams.Length > 0)
-                    {
-                        TimeSpan uptime = DateTime.UtcNow - stream.Streams[0].StartedAt;
-                        _client.SendMessage(channel, $"Stream has been live for {uptime.Hours}h {uptime.Minutes}m {uptime.Seconds}s");
-                    }
-                    else
-                    {
-                        _client.SendMessage(channel, "Stream is offline!");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error getting uptime: {ex.Message}");
-                }
-                break;
-
-            case "!dice":
-                var rnd = new Random();
-                _client.SendMessage(channel, $"{username} rolled a {rnd.Next(1, 7)} 🎲");
-                break;
-
-            case "!commands":
-                _client.SendMessage(channel, "Available commands: !hello, !uptime, !dice, !commands");
-                break;
-
+    public void ListCommands()
+    {
+        foreach (var plugin in _plugins)
+        {
+            Console.WriteLine($"{plugin.Name}: {string.Join(", ", plugin.Commands)}");
         }
     }
 
